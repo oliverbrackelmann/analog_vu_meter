@@ -334,33 +334,35 @@ class NeonVuFace extends VuFace {
       }
     }
 
-    // Minus and plus at the two ends of the scale.
-    canvas.drawRect(
-      Rect.fromCenter(
-        center: d.place(const Offset(322.6, 1226.2)),
-        width: 77.3,
-        height: 24.1,
-      ),
-      Paint()..color = Color.lerp(const Color(0xFF2F7FE0), coolStart, 0.5)!,
-    );
-    final plus = Paint()..color = hotEnd;
-    canvas
-      ..drawRect(
+    if (context.showSigns) {
+      // Minus and plus at the two ends of the scale.
+      canvas.drawRect(
         Rect.fromCenter(
-          center: d.place(const Offset(2011.9, 1068.5)),
-          width: 85.2,
-          height: 26.5,
+          center: d.place(const Offset(322.6, 1226.2)),
+          width: 77.3,
+          height: 24.1,
         ),
-        plus,
-      )
-      ..drawRect(
-        Rect.fromCenter(
-          center: d.place(const Offset(2011.9, 1068.5)),
-          width: 21.4,
-          height: 103.7,
-        ),
-        plus,
+        Paint()..color = Color.lerp(const Color(0xFF2F7FE0), coolStart, 0.5)!,
       );
+      final plus = Paint()..color = hotEnd;
+      canvas
+        ..drawRect(
+          Rect.fromCenter(
+            center: d.place(const Offset(2011.9, 1068.5)),
+            width: 85.2,
+            height: 26.5,
+          ),
+          plus,
+        )
+        ..drawRect(
+          Rect.fromCenter(
+            center: d.place(const Offset(2011.9, 1068.5)),
+            width: 21.4,
+            height: 103.7,
+          ),
+          plus,
+        );
+    }
 
     _label(canvas, d, context);
 

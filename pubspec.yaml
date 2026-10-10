@@ -6,6 +6,20 @@ description: >-
 version: 0.1.0
 repository: https://github.com/oliverbrackelmann/analog_vu_meter
 issue_tracker: https://github.com/oliverbrackelmann/analog_vu_meter/issues
+topics:
+  - audio
+  - meter
+  - gauge
+  - widget
+screenshots:
+  - description: Two framed meters with the classic face.
+    path: doc/pair.png
+  - description: The six faces.
+    path: doc/faces.png
+  - description: The four frames.
+    path: doc/frames.png
+  - description: Five shapes from 1 to 1 up to 2 to 1.
+    path: doc/shapes.png
 
 environment:
   sdk: ^3.6.0

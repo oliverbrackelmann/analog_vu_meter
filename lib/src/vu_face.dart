@@ -15,6 +15,7 @@ class VuFaceContext {
     this.clipLabel = 'CLIP',
     this.fontFamily,
     this.showPercentScale = true,
+    this.showSigns = true,
   });
 
   final VuScale scale;
@@ -31,6 +32,10 @@ class VuFaceContext {
   /// Whether the face shows its percent scale, if it has one.
   final bool showPercentScale;
 
+  /// Whether the face shows the minus and the plus at the two ends of its
+  /// scale, if it has them.
+  final bool showSigns;
+
   @override
   bool operator ==(Object other) =>
       other is VuFaceContext &&
@@ -38,11 +43,18 @@ class VuFaceContext {
       other.label == label &&
       other.clipLabel == clipLabel &&
       other.fontFamily == fontFamily &&
-      other.showPercentScale == showPercentScale;
+      other.showPercentScale == showPercentScale &&
+      other.showSigns == showSigns;
 
   @override
-  int get hashCode =>
-      Object.hash(scale, label, clipLabel, fontFamily, showPercentScale);
+  int get hashCode => Object.hash(
+        scale,
+        label,
+        clipLabel,
+        fontFamily,
+        showPercentScale,
+        showSigns,
+      );
 }
 
 /// The look of a meter: its dial, its needle and its clip lamp.

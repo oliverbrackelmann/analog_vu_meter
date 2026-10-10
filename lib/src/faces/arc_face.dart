@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
@@ -25,6 +26,7 @@ class ArcVuFace extends VuFace {
     required this.accentColor,
     this.arcWidth = 6,
     this.gloss = false,
+    this.grain = 0,
   });
 
   /// The warm, backlit studio meter: black on amber, red above the hot mark.
@@ -38,6 +40,7 @@ class ArcVuFace extends VuFace {
     this.accentColor = const Color(0xFFF0A531),
     this.arcWidth = 6,
     this.gloss = true,
+    this.grain = 1,
   }) : name = 'classic';
 
   /// A blue backlit power meter: white on blue.
@@ -51,6 +54,7 @@ class ArcVuFace extends VuFace {
     this.accentColor = const Color(0xFF3F86FF),
     this.arcWidth = 6,
     this.gloss = true,
+    this.grain = 0,
   }) : name = 'backlit';
 
   /// Mint green on black, a white needle.
@@ -64,6 +68,7 @@ class ArcVuFace extends VuFace {
     this.accentColor = const Color(0xFF35E3A4),
     this.arcWidth = 6,
     this.gloss = false,
+    this.grain = 0,
   }) : name = 'studio';
 
   /// Plain black on white with a bold arc and a red needle.
@@ -77,6 +82,7 @@ class ArcVuFace extends VuFace {
     this.accentColor = const Color(0xFFE8E8E8),
     this.arcWidth = 16,
     this.gloss = false,
+    this.grain = 1,
   }) : name = 'paper';
 
   @override
@@ -106,6 +112,11 @@ class ArcVuFace extends VuFace {
 
   /// A reflection across the glass.
   final bool gloss;
+
+  /// How much the dial looks printed on paper, from 0 (a clean drawing) to
+  /// 1: the paper shows its tooth and a few fibres, and the ink does not
+  /// cover evenly — it has pinholes, and its edges are a little ragged.
+  final double grain;
 
   @override
   Color get accent => accentColor;
@@ -195,6 +206,11 @@ class ArcVuFace extends VuFace {
     );
 
     // The scale: one arc, the hot zone as a broad band on its outside.
+    // A printed dial gets its ink on a layer of its own, so that the gaps
+    // in the ink show the paper beneath, whatever its colour there.
+    final printed = grain > 0;
+    if (printed) canvas.saveLayer(box, Paint());
+
     // A tick stands with its middle on its mark, so half of it would reach
     // beyond an arc that ends on the mark. The arcs run that much further:
     // every end closes flush with the outer edge of its tick.
@@ -203,7 +219,8 @@ class ArcVuFace extends VuFace {
     final first = half(scale.marks.first.$1);
     final last = half(scale.marks.last.$1);
     final hotHalf = half(scale.hotFromDb);
-    final bandRadius = d.radius + arcWidth / 2 + 11;
+    // The band overlaps the arc a little, or a seam would show between them.
+    final bandRadius = d.radius + arcWidth / 2 + 10;
     _arc(
       canvas,
       d,
@@ -229,7 +246,7 @@ class ArcVuFace extends VuFace {
         bandRadius,
         hotAngle - pad(hotHalf, bandRadius),
         d.sweep + pad(last, bandRadius),
-        22,
+        24,
         hotColor,
       );
     }
@@ -258,16 +275,18 @@ class ArcVuFace extends VuFace {
         position > hotAt + 1e-9 ? hotColor : ink,
       );
     }
-    // Minus and plus beyond the two ends.
-    _text(canvas, context, '–', d.polar(-d.sweep - 6.5, d.radius), 44, ink);
-    _text(
-      canvas,
-      context,
-      '+',
-      d.polar(d.sweep + 6.5, d.radius),
-      44,
-      hotAt <= 1 ? hotColor : ink,
-    );
+    if (context.showSigns) {
+      // Minus and plus beyond the two ends.
+      _text(canvas, context, '–', d.polar(-d.sweep - 6.5, d.radius), 44, ink);
+      _text(
+        canvas,
+        context,
+        '+',
+        d.polar(d.sweep + 6.5, d.radius),
+        44,
+        hotAt <= 1 ? hotColor : ink,
+      );
+    }
 
     // The percent scale, below the arc.
     if (context.showPercentScale) {
@@ -341,6 +360,12 @@ class ArcVuFace extends VuFace {
       );
     }
 
+    if (printed) {
+      _gaps(canvas, d.h);
+      canvas.restore();
+      _paper(canvas, d.h);
+    }
+
     if (gloss) {
       // A reflection: a pale wedge from the upper left.
       canvas.drawPath(
@@ -371,6 +396,79 @@ class ArcVuFace extends VuFace {
   }
 
   static const double _lampRadius = 24;
+
+  /// Scatters round specks over the dial, by a fixed [seed]: the same dial
+  /// always carries the same grain, and it does not crawl on a repaint.
+  void _specks(
+    Canvas canvas,
+    double h,
+    math.Random random,
+    int count,
+    double width,
+    Paint paint,
+  ) {
+    // As many per area in every shape.
+    final area = h / (_w / VuFace.aspectRatio);
+    final amount = grain.clamp(0.0, 1.0);
+    final points = Float32List((count * amount * area).round() * 2);
+    for (var i = 0; i < points.length; i += 2) {
+      points[i] = random.nextDouble() * _w;
+      points[i + 1] = random.nextDouble() * h;
+    }
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      points,
+      paint
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  /// Where the ink did not take: specks that wear the ink layer thin. In
+  /// the ink they are pinholes, and where they meet an edge they fray it.
+  /// See [grain].
+  void _gaps(Canvas canvas, double h) {
+    final random = math.Random(1883);
+    Paint wear(double alpha) => Paint()
+      ..blendMode = BlendMode.dstOut
+      ..color = Color.fromRGBO(0, 0, 0, alpha);
+    _specks(canvas, h, random, 16000, 1.3, wear(0.5));
+    _specks(canvas, h, random, 7000, 2.1, wear(0.38));
+    _specks(canvas, h, random, 1800, 3.3, wear(0.28));
+  }
+
+  /// The paper itself: its tooth, a few fibres and the odd fleck of ink
+  /// beside a line. Needle and lamp are painted later and stay clean — they
+  /// are not printed.
+  void _paper(Canvas canvas, double h) {
+    final random = math.Random(2443);
+    final area = h / (_w / VuFace.aspectRatio);
+    final amount = grain.clamp(0.0, 1.0);
+    canvas
+      ..save()
+      ..clipRect(Rect.fromLTWH(0, 0, _w, h));
+    _specks(canvas, h, random, 9000, 1.5,
+        Paint()..color = ink.withValues(alpha: 0.05));
+    _specks(canvas, h, random, 2500, 2.6,
+        Paint()..color = ink.withValues(alpha: 0.035));
+    final fibre = Paint()
+      ..strokeWidth = 0.9
+      ..strokeCap = StrokeCap.round
+      ..color = ink.withValues(alpha: 0.06);
+    for (var i = (260 * amount * area).round(); i > 0; i--) {
+      final from = Offset(random.nextDouble() * _w, random.nextDouble() * h);
+      final angle = random.nextDouble() * math.pi;
+      final length = 6 + random.nextDouble() * 16;
+      canvas.drawLine(
+        from,
+        from + Offset(math.cos(angle), math.sin(angle)) * length,
+        fibre,
+      );
+    }
+    _specks(canvas, h, random, 700, 1.2,
+        Paint()..color = ink.withValues(alpha: 0.22));
+    canvas.restore();
+  }
 
   @override
   Rect lampArea(double aspectRatio) {
@@ -496,7 +594,8 @@ class ArcVuFace extends VuFace {
       other.pivot == pivot &&
       other.accentColor == accentColor &&
       other.arcWidth == arcWidth &&
-      other.gloss == gloss;
+      other.gloss == gloss &&
+      other.grain == grain;
 
   @override
   int get hashCode => Object.hash(
@@ -510,6 +609,7 @@ class ArcVuFace extends VuFace {
         accentColor,
         arcWidth,
         gloss,
+        grain,
       );
 }
 

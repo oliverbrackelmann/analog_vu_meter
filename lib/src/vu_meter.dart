@@ -44,6 +44,7 @@ class VuMeter extends StatefulWidget {
     this.label,
     this.clipLabel = 'CLIP',
     this.showPercentScale = true,
+    this.showSigns = true,
     this.showClipLamp = true,
     this.response = const Duration(milliseconds: 300),
     this.fontFamily,
@@ -78,6 +79,11 @@ class VuMeter extends StatefulWidget {
 
   /// The percent scale, where the face has one.
   final bool showPercentScale;
+
+  /// The minus and the plus at the two ends of the scale, where the face
+  /// has them. They are decoration from the classic VU meter; turn them off
+  /// where they would mislead — on a dBFS scale nothing is "plus".
+  final bool showSigns;
 
   /// The clip lamp. Without it [clip] and [onClipTap] have no effect.
   final bool showClipLamp;
@@ -155,6 +161,7 @@ class _VuMeterState extends State<VuMeter> with SingleTickerProviderStateMixin {
       clipLabel: widget.clipLabel,
       fontFamily: widget.fontFamily,
       showPercentScale: widget.showPercentScale,
+      showSigns: widget.showSigns,
     );
     final ratio = widget.aspectRatio.clamp(
       VuFace.minAspectRatio,

@@ -263,6 +263,42 @@ void main() {
       }
     });
 
+    testWidgets('minus and plus at the ends can be turned off', (tester) async {
+      for (final face in VuFace.values) {
+        await tester.pumpWidget(
+          _host(VuMeter(db: -3, face: face, showSigns: false)),
+        );
+        expect(tester.takeException(), isNull, reason: face.name);
+      }
+      // A face repaints when the switch changes.
+      expect(
+        const VuFaceContext(scale: VuScale.digital),
+        isNot(const VuFaceContext(scale: VuScale.digital, showSigns: false)),
+      );
+    });
+
+    testWidgets('the print is optional on every arc face', (tester) async {
+      // Paper and classic come printed, the others clean.
+      expect(const ArcVuFace.paper().grain, 1);
+      expect(const ArcVuFace.classic().grain, 1);
+      expect(const ArcVuFace.backlit().grain, 0);
+      expect(const ArcVuFace.studio().grain, 0);
+      expect(const ArcVuFace.classic(grain: 0), isNot(VuFace.classic));
+      for (final face in const [
+        ArcVuFace.paper(grain: 0),
+        ArcVuFace.classic(grain: 0),
+        ArcVuFace.backlit(grain: 1),
+        ArcVuFace.studio(grain: 0.5),
+      ]) {
+        for (final ratio in _ratios) {
+          await tester.pumpWidget(
+            _host(VuMeter(db: -3, face: face, aspectRatio: ratio)),
+          );
+          expect(tester.takeException(), isNull, reason: face.name);
+        }
+      }
+    });
+
     test('a shape outside 1 : 1 … 2 : 1 is refused', () {
       expect(() => VuMeter(db: 0, aspectRatio: 0.9), throwsAssertionError);
       expect(() => VuMeter(db: 0, aspectRatio: 2.1), throwsAssertionError);
@@ -461,9 +497,12 @@ void main() {
     });
   });
 
-  // Writes a contact sheet when VU_SHOT names a file — to look at, not to
-  // compare. VU_FONT may name a .ttf; the test font draws glyphs as boxes.
-  testWidgets('shot', (tester) async {
+  // Writes the pictures of the README into the directory VU_SHOT names:
+  //
+  //   VU_SHOT=doc VU_FONT=/path/to/a.ttf flutter test --plain-name pictures
+  //
+  // VU_FONT names the typeface; without it the test font draws boxes.
+  testWidgets('pictures', (tester) async {
     final target = Platform.environment['VU_SHOT'];
     if (target == null) return;
     final font = Platform.environment['VU_FONT'];
@@ -477,73 +516,154 @@ void main() {
       });
     }
     final family = font == null ? null : 'Shot';
-    tester.view.physicalSize = const Size(1700, 2060);
-    tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    // Faces down, shapes across; every other row in a frame.
-    final levels = [-4.0, -1.5, -9.0, -3.0, -6.5, -12.0];
-    final key = GlobalKey();
-    Widget cell(int row, double ratio) {
-      final meter = VuMeter(
-        db: levels[row],
-        clip: row == 0,
-        face: VuFace.values[row],
-        scale: row.isEven ? VuScale.digital : VuScale.analog,
-        label: 'Audio System',
-        response: Duration.zero,
-        fontFamily: family,
-        borderRadius: row.isEven ? 6 : 0,
-        aspectRatio: ratio,
-      );
-      return row.isEven
-          ? meter
-          : VuMeterBezel(
-              style: VuBezelStyle.values[row ~/ 2 + 1],
-              caption: '$ratio : 1',
-              fontFamily: family,
-              child: meter,
-            );
-    }
 
-    await tester.pumpWidget(
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: RepaintBoundary(
-          key: key,
-          child: ColoredBox(
-            color: const Color(0xFF0B0C0E),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  for (var row = 0; row < VuFace.values.length; row++)
-                    Expanded(
-                      child: Row(
-                        children: [
-                          for (final ratio in _ratios)
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.all(8),
-                                child: Center(child: cell(row, ratio)),
+    Future<void> shoot(String name, Size size, List<Widget> cells,
+        {int columns = 0}) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      final perRow = columns == 0 ? cells.length : columns;
+      final key = GlobalKey();
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: RepaintBoundary(
+            key: key,
+            child: ColoredBox(
+              color: const Color(0xFF0B0C0E),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    for (var i = 0; i < cells.length; i += perRow)
+                      Expanded(
+                        child: Row(
+                          children: [
+                            for (final cell in cells.skip(i).take(perRow))
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(10),
+                                  child: Center(child: cell),
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
+      );
+      await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage();
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$target/$name.png')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(data!.buffer.asUint8List());
+      });
+    }
+
+    final levels = [-4.0, -1.5, -9.0, -3.0, -6.5, -12.0];
+    VuMeter meter(int i, {double ratio = VuFace.aspectRatio, String? label}) =>
+        VuMeter(
+          db: levels[i % levels.length],
+          clip: i == 0,
+          face: VuFace.values[i % VuFace.values.length],
+          scale: i.isEven ? VuScale.digital : VuScale.analog,
+          // On a dBFS scale nothing is "plus".
+          showSigns: i.isOdd,
+          label: label,
+          response: Duration.zero,
+          fontFamily: family,
+          aspectRatio: ratio,
+        );
+
+    // The six faces, by name.
+    await shoot(
+      'faces',
+      const Size(1500, 830),
+      [
+        for (var i = 0; i < VuFace.values.length; i++)
+          VuMeter(
+            db: levels[i],
+            clip: i == 0,
+            face: VuFace.values[i],
+            scale: i.isEven ? VuScale.digital : VuScale.analog,
+            // On a dBFS scale nothing is "plus".
+            showSigns: i.isOdd,
+            label: VuFace.values[i].name,
+            response: Duration.zero,
+            fontFamily: family,
+            borderRadius: 8,
+          ),
+      ],
+      columns: 3,
     );
-    await tester.runAsync(() async {
-      final boundary =
-          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      final image = await boundary.toImage();
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      File(target).writeAsBytesSync(data!.buffer.asUint8List());
-    });
+    // The four frames, each around another face.
+    await shoot('frames', const Size(1600, 400), [
+      for (var i = 0; i < VuBezelStyle.values.length; i++)
+        VuMeterBezel(
+          style: VuBezelStyle.values[i],
+          caption: VuBezelStyle.values[i].name,
+          fontFamily: family,
+          child: meter(i + 1),
+        ),
+    ]);
+    // One face in five shapes, and another without a frame.
+    await shoot(
+      'shapes',
+      const Size(1700, 640),
+      [
+        for (final ratio in _ratios)
+          VuMeterBezel(
+            style: VuBezelStyle.silver,
+            caption: '$ratio : 1',
+            fontFamily: family,
+            child: meter(1, ratio: ratio),
+          ),
+        for (final ratio in _ratios)
+          VuMeter(
+            db: -9,
+            face: VuFace.neon,
+            scale: VuScale.digital,
+            showSigns: false,
+            response: Duration.zero,
+            fontFamily: family,
+            borderRadius: 8,
+            aspectRatio: ratio,
+          ),
+      ],
+      columns: 5,
+    );
+    // The two printed faces, close up.
+    await shoot('print', const Size(1400, 560), [
+      for (final face in [VuFace.paper, VuFace.classic])
+        VuMeter(
+          db: -8,
+          face: face,
+          response: Duration.zero,
+          fontFamily: family,
+          borderRadius: 8,
+        ),
+    ]);
+    // A stereo pair, as the first picture.
+    await shoot('pair', const Size(1200, 560), [
+      for (final (caption, db) in [('Left', -4.0), ('Right', -7.5)])
+        VuMeterBezel(
+          caption: caption,
+          fontFamily: family,
+          child: VuMeter(
+            db: db,
+            face: VuFace.classic,
+            response: Duration.zero,
+            fontFamily: family,
+          ),
+        ),
+    ]);
   });
 }
