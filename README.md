@@ -169,4 +169,5 @@ flutter run
 
 ## Credits
 
-Artwork and widget by Oliver Brackelmann.
+Artwork and widget by Oliver Brackelmann, designed and built together with
+[Claude Code](https://claude.com/claude-code).
