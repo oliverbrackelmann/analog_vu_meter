@@ -1,0 +1,21 @@
+name: analog_vu_meter
+description: >-
+  Analog needle VU meters for Flutter. Six faces, four frames and analog,
+  digital (dBFS) or custom scales, freely combinable. Pure Dart painting,
+  no assets, no dependencies.
+version: 0.1.0
+repository: https://github.com/oliverbrackelmann/analog_vu_meter
+issue_tracker: https://github.com/oliverbrackelmann/analog_vu_meter/issues
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

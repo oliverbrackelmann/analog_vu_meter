@@ -1,0 +1,15 @@
+name: analog_vu_meter_example
+description: Shows the analog_vu_meter package.
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  analog_vu_meter:
+    path: ..
+
+flutter:
+  uses-material-design: true
